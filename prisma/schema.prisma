@@ -1,0 +1,232 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  CUSTOMER
+  ADMIN
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  DEPOSIT_PAID
+  PAID
+  REFUNDED
+}
+
+enum SpiceLevel {
+  MILD
+  MEDIUM
+  HOT
+  EXTRA_HOT
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  password      String
+  image         String?
+  role          UserRole  @default(CUSTOMER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  orders        EventOrder[]
+  accounts      Account[]
+  sessions      Session[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Location {
+  id          String   @id @default(cuid())
+  name        String
+  address     String
+  city        String
+  state       String
+  zip         String
+  phone       String
+  email       String
+  isActive    Boolean  @default(true)
+  openHours   String
+  description String?
+  image       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  menuItems   MenuItem[]
+  orders      EventOrder[]
+}
+
+model MenuCategory {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  menuItems   MenuItem[]
+}
+
+model MenuItem {
+  id              String      @id @default(cuid())
+  locationId      String
+  categoryId      String
+  name            String
+  description     String
+  isVegetarian    Boolean     @default(false)
+  spiceLevel      SpiceLevel  @default(MEDIUM)
+  image           String?
+  pricePerTray10  Float
+  pricePerTray25  Float
+  pricePerTray50  Float
+  isActive        Boolean     @default(true)
+  isAvailable     Boolean     @default(true)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  
+  location        Location    @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  category        MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  orderItems      EventOrderItem[]
+  
+  @@index([locationId])
+  @@index([categoryId])
+}
+
+model EventOrder {
+  id                String        @id @default(cuid())
+  userId            String?
+  locationId        String
+  eventType         String
+  eventDate         DateTime
+  guestCount        Int
+  eventAddress      String
+  eventCity         String
+  eventState        String
+  eventZip          String
+  status            OrderStatus   @default(PENDING)
+  paymentStatus     PaymentStatus @default(PENDING)
+  subtotal          Float
+  serviceCharge     Float         @default(0)
+  tax               Float         @default(0)
+  totalAmount       Float
+  depositAmount     Float?
+  customerName      String
+  customerEmail     String
+  customerPhone     String
+  specialNotes      String?
+  stripeSessionId   String?
+  stripePaymentId   String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  
+  user              User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  location          Location      @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  items             EventOrderItem[]
+  
+  @@index([userId])
+  @@index([locationId])
+  @@index([eventDate])
+  @@index([status])
+}
+
+model EventOrderItem {
+  id            String     @id @default(cuid())
+  eventOrderId  String
+  menuItemId    String
+  packSize      Int
+  quantity      Int
+  pricePerPack  Float
+  lineTotal     Float
+  createdAt     DateTime   @default(now())
+  
+  eventOrder    EventOrder @relation(fields: [eventOrderId], references: [id], onDelete: Cascade)
+  menuItem      MenuItem   @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  
+  @@index([eventOrderId])
+  @@index([menuItemId])
+}
+
+model Testimonial {
+  id          String   @id @default(cuid())
+  name        String
+  eventType   String
+  city        String
+  content     String
+  rating      Int      @default(5)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model BlogPost {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  excerpt     String
+  content     String
+  image       String?
+  author      String
+  isPublished Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([slug])
+}
+
+model SiteContent {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String
+  updatedAt   DateTime @updatedAt
+  
+  @@index([key])
+}
