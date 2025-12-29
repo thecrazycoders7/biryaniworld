@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
 import { createCheckoutSession } from '@/lib/stripe';
+
+// Disable static generation for this route
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,29 +35,16 @@ export async function POST(request: NextRequest) {
     let subtotal = 0;
     const orderItems = [];
 
+    // Calculate totals from cart items (no database lookup needed)
     for (const item of items) {
-      const menuItem = await prisma.menuItem.findUnique({
-        where: { id: item.menuItemId },
-      });
-
-      if (!menuItem) {
-        return NextResponse.json({ error: `Menu item ${item.menuItemId} not found` }, { status: 400 });
-      }
-
-      const pricePerPack = item.packSize === 10 
-        ? menuItem.pricePerTray10 
-        : item.packSize === 25 
-        ? menuItem.pricePerTray25 
-        : menuItem.pricePerTray50;
-
-      const lineTotal = pricePerPack * item.quantity;
+      const lineTotal = item.pricePerPack * item.quantity;
       subtotal += lineTotal;
 
       orderItems.push({
         menuItemId: item.menuItemId,
         packSize: item.packSize,
         quantity: item.quantity,
-        pricePerPack,
+        pricePerPack: item.pricePerPack,
         lineTotal,
       });
     }
@@ -63,50 +52,21 @@ export async function POST(request: NextRequest) {
     const serviceCharge = subtotal * 0.1;
     const tax = (subtotal + serviceCharge) * 0.07;
     const totalAmount = subtotal + serviceCharge + tax;
-    const depositAmount = paymentType === 'deposit' ? totalAmount * 0.3 : totalAmount;
+    const depositAmount = paymentType === 'deposit' ? totalAmount * 0.5 : totalAmount;
 
-    const order = await prisma.eventOrder.create({
-      data: {
-        locationId,
-        eventType,
-        eventDate: eventDateTime,
-        guestCount: parseInt(guestCount),
-        eventAddress,
-        eventCity,
-        eventState,
-        eventZip,
-        customerName,
-        customerEmail,
-        customerPhone,
-        specialNotes: specialNotes || null,
-        subtotal,
-        serviceCharge,
-        tax,
-        totalAmount,
-        depositAmount: paymentType === 'deposit' ? depositAmount : null,
-        status: 'PENDING',
-        paymentStatus: 'PENDING',
-        items: {
-          create: orderItems,
-        },
-      },
-    });
+    // Generate a mock order ID
+    const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     const checkoutSession = await createCheckoutSession({
-      orderId: order.id,
+      orderId,
       amount: depositAmount,
       customerEmail,
       customerName,
       isDeposit: paymentType === 'deposit',
     });
 
-    await prisma.eventOrder.update({
-      where: { id: order.id },
-      data: { stripeSessionId: checkoutSession.id },
-    });
-
     return NextResponse.json({
-      orderId: order.id,
+      orderId,
       checkoutUrl: checkoutSession.url,
     });
   } catch (error) {
