@@ -58,10 +58,10 @@ export default function MenuBuilderPage() {
       const data = await response.json();
       
       setMenuItems(data.items || []);
-      const uniqueCategories = [...new Set(data.items.map((item: MenuItem) => item.category))];
+      const uniqueCategories = [...new Set(data.items.map((item: MenuItem) => item.category))] as string[];
       setCategories(uniqueCategories);
       if (uniqueCategories.length > 0) {
-        setSelectedCategory(uniqueCategories[0]);
+        setSelectedCategory(uniqueCategories[0] as string);
       }
     } catch (error) {
       console.error('Error fetching menu:', error);
